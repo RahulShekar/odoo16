@@ -1,0 +1,79 @@
+version: '3'
+services:
+# nginx proxy container
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    network_mode: bridge
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certs:/etc/nginx/certs
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - dhparam:/etc/nginx/dhparam
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+    labels:
+      - com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy
+
+  # letsencrypt cert container
+  nginx-proxy-letsencrypt:
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    network_mode: bridge
+    container_name: nginx-proxy-letsencrypt
+    restart: always
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - acme:/etc/acme.sh
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  postgres:
+    image: postgres:12.0
+    network_mode: bridge
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    depends_on:
+      - nginx-proxy
+      - nginx-proxy-letsencrypt
+  odoo:
+    #image: Building own image from base code-16.0
+    network_mode: bridge
+    command: start
+    links:
+      - postgres:db
+    ports:
+      - "8069:8069"
+    environment:
+    - ODOO_ADMIN_PASSWORD=P@ssw0rd@123
+    - ODOO_DB_USER=odoo
+    - ODOO_DB_PASSWORD=odoo
+    - VIRTUAL_HOST=myportal.pratian.com #change it to your host
+    - LETSENCRYPT_HOST=myportal.skillassure.com #change it to your host
+    - LETSENCRYPT_EMAIL= basavarajbhavi@ymail.com #change it to your email
+    - VIRTUAL_PORT="8069"
+    volumes:
+      - ./volumes/odoo/filestore:/opt/odoo/data/filestore
+      - ./volumes/odoo/sessions:/opt/odoo/data/sessions
+    depends_on:
+      - nginx-proxy
+      - nginx-proxy-letsencrypt
+volumes:
+  certs:
+  conf:
+  vhost:
+  html:
+  acme:
+  dhparam:
+
